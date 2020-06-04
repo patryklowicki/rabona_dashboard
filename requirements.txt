@@ -1,0 +1,9 @@
+matplotlib
+seaborn
+dash
+requests
+bs4
+pandas
+numpy
+lxml
+sklearn
