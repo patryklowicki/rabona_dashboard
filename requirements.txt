@@ -7,3 +7,4 @@ pandas
 numpy
 lxml
 sklearn
+dash-bootstrap-components
