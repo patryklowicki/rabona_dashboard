@@ -11,9 +11,10 @@ import dash_bootstrap_components as dbc
 import os
 import plotly.figure_factory as ff
 
-external_stylesheets = ['https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T']
+
 
 df = pd.read_pickle(r'./data/merged_fieldplayers.p')
+gk = pd.read_pickle(r'./data/merged_gk.p')
 
 
 #### attributes
@@ -25,6 +26,9 @@ info_columns = [('Unnamed: 2_level_0', 'Nation'),
                   ('Playing Time_x', 'MP'),
                   ('Playing Time_x', 'Starts'),
                   ('Playing Time_x', 'Min'),
+                  ('Playing Time_y', 'Min%'),
+                  ('Performance', 'Gls'),
+                  ('Performance', 'Ast')
                 ]
 
 gk_attributes = [
@@ -71,24 +75,48 @@ fw_attributes = {
 
 
 
-
+#CYBORG
 
 
 ######## LAYOUT ########
 
-app = dash.Dash(external_stylesheets=[dbc.themes.CYBORG])
+external_stylesheets = ['https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T']
+app = dash.Dash(external_stylesheets=[dbc.themes.FLATLY])
 
 app.layout = dbc.Container(
     children=[
     html.H1('RABONA DASHBOARD'),
 
+    dbc.Collapse(
+        dbc.Jumbotron(
+            [
+            html.H2('Welcome to Rabona Dashboard', className='display-3'),
+            html.P('Rabona is a stats visualization tool powered that allows you to see players statistics TOP 5 european football leagues '),
+            html.Hr(className='my-2'),
+            html.P("Type player's name to see stats vizualization. You can change positional template and filter by league here. "
+                   "You can see more details on a distplot when you click on single bar/attribute"
+                   "Hide this message by clicking button below or just start typing player's name! "),
+            dbc.Button(
+                   "Got it",
+                   id="collapse-button",
+                   className="mb-3",
+                   color="primary",
+                   block=True),
+            ],
+        id='jumbotron'
+        ),  #jumbotron
+    id='collapse',
+    is_open = True) #collapse
+    ,
+
     dbc.Row(children=[
-        dbc.Col(dbc.Input(id='player_name_input', placeholder="Enter player's name", type='text', debounce=True)),
+        dbc.Col(dbc.Input(id='player_name_input', placeholder="Enter player's name", type='text', debounce=True, bs_size='lg', className='mb-3')),
+
         dbc.Col(dbc.RadioItems(id='position_template_picker',
                                         options=[
                                             {'label': 'Goalkeeper', 'value': 'GK'},
                                             {'label': 'Defender', 'value': 'DF'},
-                                            {'label': 'Midfielder', 'value': 'AM'},
+                                            {'label': 'Midfielder', 'value': 'MF'},
                                             {'label': 'Forward', 'value': 'FW'}
                                         ],
                                 )),
@@ -103,27 +131,39 @@ app.layout = dbc.Container(
                                ))]
     ),
 
-    dbc.Row(children = [
-        dbc.Col(
+    dbc.Row(id='info_row',
+            children = [
+        dbc.Col(children=[
             dbc.Card([
                 dbc.CardImg(id='player_image'),
                 dbc.CardBody(dash_table.DataTable(id='summary_table',
-                                                  style_cell={
-                                                      'backgroundColor' : 'black',
-                                                      'color':'white',
-                                                      'textAlign': 'left'
-                                                  }))
-            ])
+                                                  style_as_list_view = True,
+                                                  style_header = {'textAlign'  : 'left',
+                                                                  'fontFamily' : 'Helvetica',
+                                                                  'fontWeight' : 'bold',
+                                                                  'fontSize' : 12,
+                                                                  },
+
+                                                  style_cell = { 'textAlign' : 'left',
+                                                                 'fontFamily': 'Helvetica' },
+
+                                                  ))
+            ]),
+           ]
         , width=3),
 
         dbc.Col(
-            dcc.Graph(id='polar_bar')
+            dcc.Graph(id='polar_bar'),
                ),
-    ]),
+    ], style = {'display' : 'none'}),
 
-    dbc.Row(children = [
-        dcc.Graph(id='distplot')
-    ])
+    dbc.Row(id='second_row',
+            children = [
+                dbc.Col(
+                    dcc.Graph(id='distplot')
+                )
+    ], style= {'display': 'none'}
+    )
 
     ]
 )
@@ -143,9 +183,37 @@ def normalize(df, template):
     return result
 
 
+@app.callback(
+    dash.dependencies.Output("collapse", "is_open"),
+    [dash.dependencies.Input("collapse-button", "n_clicks")],
+    [dash.dependencies.State("collapse", "is_open")],
+)
+def toggle_collapse(n, is_open):
+    if n:
+        return not is_open
+    return is_open
+
+
+@app.callback(
+    [dash.dependencies.Output('position_template_picker', 'value'),
+    dash.dependencies.Output('compare_with_picker', 'value')],
+    [dash.dependencies.Input('player_name_input', 'value')]
+)
+def initial_radio_selection(playername):
+    player_data =  df.loc[ (df.index == playername) ]
+    position = player_data['Position', 'Pos'][0]
+
+    initial_top5 = 'top'
+
+    return position, initial_top5
+
+
+
 #polar plot
 @app.callback(
-    dash.dependencies.Output('polar_bar', 'figure'),
+    [dash.dependencies.Output('polar_bar', 'figure'),
+    dash.dependencies.Output('info_row', 'style'),
+     dash.dependencies.Output('jumbotron', 'style')],
     [dash.dependencies.Input('player_name_input', 'value'),
      dash.dependencies.Input('position_template_picker', 'value'),
      dash.dependencies.Input('compare_with_picker', 'value')]
@@ -160,8 +228,8 @@ def make_polar_chart(playername, template, league):
         df_league = df
 
 
-    if template == 'AM':
-        print('AM')
+    if template == 'MF':
+        print('MF')
 
         player_raw_values   = df.loc[df.index == playername][list(am_attributes.values())]
         template_df_pre = df_league.loc[ (df_league.index == playername) | ( df_league[('Position', 'Pos')] == 'MF' ) | (df_league[('Position', 'Alt')] == 'MF') ]
@@ -222,7 +290,7 @@ def make_polar_chart(playername, template, league):
            'tickmode' : 'array',
           'tickvals' : [0.25, 0.5, 0.75],
         },
-        template = 'plotly_dark',
+        # template = 'plotly_dark',
         width=600,
         height=600,
         font_size=14,
@@ -230,7 +298,9 @@ def make_polar_chart(playername, template, league):
         polar_angularaxis_rotation=90,
     )
 
-    return fig
+    style_content   = {'display': 'flex'}
+    style_jumbotron = {'display': 'none'}
+    return fig, style_content, style_jumbotron
 
 
 # SUMMARY TABLE
@@ -242,9 +312,12 @@ def make_polar_chart(playername, template, league):
 def build_summary_table(input):
     player_info = df.loc[df.index == input][info_columns]
     player_info.reset_index(inplace=True)
-    player_info.columns = ['Name', 'Nationality', 'Position', 'Club' , 'League', 'MP', 'Starts', 'Min%']
+    player_info.columns = ['Name', 'Nationality', 'Position', 'Club' , 'League', 'Matches', 'Starts', 'Minutes', 'Minutes %', 'Goals', 'Assists']
 
     player_info = player_info.transpose()
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['', input]
+
 
     data = player_info[1:].to_dict("records")
     columns = [{"name": i, "id": i} for i in [str(x) for x in player_info.columns]]
@@ -272,7 +345,8 @@ def get_image(input):
 
 #distplot
 @app.callback(
-    dash.dependencies.Output('distplot', 'figure'),
+    [dash.dependencies.Output('distplot', 'figure'),
+     dash.dependencies.Output('second_row', 'style')],
     [dash.dependencies.Input('player_name_input', 'value'),
      dash.dependencies.Input('position_template_picker', 'value'),
      dash.dependencies.Input('polar_bar', 'clickData')]
@@ -295,7 +369,8 @@ def make_distplot(playername, position, clickData):
 
     fig = ff.create_distplot([lxg], [str(attribute)], bin_size=0.01, show_rug=True, show_hist=False)
     fig.update_layout(showlegend=False,
-                      template = 'plotly_dark',
+                      height=600,
+                      # template = 'plotly_dark',
                       annotations=[
                           dict(
                               x=player_attribute_value,
@@ -304,13 +379,16 @@ def make_distplot(playername, position, clickData):
                               yref="y",
                               text=playername,
                               showarrow=True,
-                              arrowhead=7,
+                              arrowhead=4,
                               arrowcolor="red",
                               ax=0,
                               ay=-300
                           )
                       ])
-    return fig
+
+    style_property = {'display' : 'block'}
+
+    return fig, style_property
 
 
 
