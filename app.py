@@ -13,8 +13,8 @@ import plotly.figure_factory as ff
 
 
 
-df = pd.read_pickle(r'./data/merged_fieldplayers.p')
-gk = pd.read_pickle(r'./data/merged_gk.p')
+df = pd.read_pickle(r'./data/merged_players.p')
+# gk = pd.read_pickle(r'./data/merged_gk.p')
 
 
 #### attributes
@@ -31,9 +31,15 @@ info_columns = [('Unnamed: 2_level_0', 'Nation'),
                   ('Performance', 'Ast')
                 ]
 
-gk_attributes = [
-
-]
+gk_attributes = {
+    'Save %'                   : (  'Performance',    'Save%'),
+    'Clean sheet %'            : (  'Performance',      'CS%'),
+    'Crosses stopped %'        : (      'Crosses',     'Stp%'),
+    'Post Shot xG +/-'         : (     'Expected',  'PSxG+/-'),
+    "Post Shot xG +/- per 90'" : (     'Expected',      '/90'),
+    'Launches %'               : (     'Launched',     'Cmp%'),
+    'Long Passes %'            : (       'Passes',  'Launch%'),
+}
 
 df_attributes = {
       "Passes to final third" : ('Unnamed: 27_level_0', '1/3'),
@@ -81,11 +87,55 @@ fw_attributes = {
 ######## LAYOUT ########
 
 external_stylesheets = ['https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T']
+
+
 app = dash.Dash(external_stylesheets=[dbc.themes.FLATLY])
+ICON_IMAGE = app.get_asset_url('freepik_pinkball.png')
+PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
+
+
+search_bar = dbc.Row(
+    [
+        # dbc.Col(dbc.Input(type="search", placeholder="Search")),
+        dbc.Col(dbc.Button('ABOUT',
+                           id='about_button',
+                           outline = True,
+                           color= 'dark',
+                           # style={'font-size' : '20px',
+                           #          'font-weight': 'bold',
+                           #          'color' : '#CB95BC'}
+                )),
+        dbc.Col(
+            html.Img(src=ICON_IMAGE, height="60px", className="ml-2"),
+            width="auto",
+        ),
+    ],
+    no_gutters=False,
+    className="ml-auto flex-nowrap mt-3 mt-md-0",
+    align="center",
+),
 
 app.layout = dbc.Container(
     children=[
-    html.H1('RABONA DASHBOARD'),
+
+
+    dbc.Navbar(
+        [
+            html.A(
+                # Use row and col to control vertical alignment of logo / brand
+                dbc.Row(
+                    [
+                        dbc.Col(dbc.NavbarBrand("RABONA DASHBOARD", className="ml-2", style={'font-size': '40px'}))
+                    ],
+                    align="center",
+                    no_gutters=True,
+                ),
+                href="https://plot.ly",
+            ),
+            dbc.NavbarToggler(id="navbar-toggler"),
+            dbc.Collapse(search_bar, id="navbar-collapse", navbar=True, is_open=True),
+        ],
+    ),
 
     dbc.Collapse(
         dbc.Jumbotron(
@@ -163,9 +213,12 @@ app.layout = dbc.Container(
                     dcc.Graph(id='distplot')
                 )
     ], style= {'display': 'none'}
-    )
+    ),
+    html.Footer('patryk lowicki / plotly / fbref'),
+    ],
 
-    ]
+
+
 )
 
 
@@ -190,6 +243,17 @@ def normalize(df, template):
 )
 def toggle_collapse(n, is_open):
     if n:
+        return not is_open
+    return is_open
+
+
+@app.callback(
+    dash.dependencies.Output("navbar-collapse", "is_open"),
+    [dash.dependencies.Input("about_button", "n_clicks")],
+    [dash.dependencies.State("collapse", "is_open")],
+)
+def toggle_collapse(b, is_open):
+    if b:
         return not is_open
     return is_open
 
@@ -261,6 +325,19 @@ def make_polar_chart(playername, template, league):
         columns = [str(x) for x in list(fw_attributes.keys())]
         customdata = [x for x in list(fw_attributes.values())]
 
+    elif template == 'GK':
+        print('GK')
+
+
+        player_raw_values = df.loc[df.index == playername][list(gk_attributes.values())]
+        template_df_pre = df_league.loc[ (df_league.index == playername) | (df_league[('Position', 'Pos')] == 'GK')]
+        template_df = template_df_pre.loc[template_df_pre[('Playing Time_y', 'Min%')] > 50]
+        normalized_to_position = normalize(template_df, list(gk_attributes.values()))
+        player_normalized = normalized_to_position.loc[normalized_to_position.index == playername][list(gk_attributes.values())]
+        columns = [str(x) for x in list(gk_attributes.keys())]
+        customdata = [x for x in list(gk_attributes.values())]
+
+
     else:
         pass # automaticaly set for the actual player's position
 
@@ -272,7 +349,7 @@ def make_polar_chart(playername, template, league):
     fig.add_trace(go.Barpolar(
         r=player_attr_values,  # wartosci atrybutow w kolejnosci przeciwnej do zegara
         name='Shots',
-        marker_color='#119DFF',
+        marker_color='#CB95BC',
         theta=columns,
         customdata=customdata
     ))
@@ -366,8 +443,9 @@ def make_distplot(playername, position, clickData):
 
     xg.drop_duplicates(inplace=True)
     lxg = np.array(xg[attribute])
+    names = np.array(xg.index)
 
-    fig = ff.create_distplot([lxg], [str(attribute)], bin_size=0.01, show_rug=True, show_hist=False)
+    fig = ff.create_distplot([lxg], [str(attribute)], bin_size=0.01, show_rug=True, show_hist=False, rug_text=[names])
     fig.update_layout(showlegend=False,
                       height=600,
                       # template = 'plotly_dark',
