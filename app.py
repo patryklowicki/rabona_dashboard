@@ -105,6 +105,14 @@ search_bar = dbc.Row(
                            #          'font-weight': 'bold',
                            #          'color' : '#CB95BC'}
                 )),
+        dbc.Col(dbc.Button('DARK THEME',
+                           id='theme_button',
+                           outline = True,
+                           color= 'dark',
+                           # style={'font-size' : '20px',
+                           #          'font-weight': 'bold',
+                           #          'color' : '#CB95BC'}
+                )),
         dbc.Col(
             html.Img(src=ICON_IMAGE, height="60px", className="ml-2"),
             width="auto",
@@ -117,8 +125,6 @@ search_bar = dbc.Row(
 
 app.layout = dbc.Container(
     children=[
-
-
     dbc.Navbar(
         [
             html.A(
@@ -200,26 +206,24 @@ app.layout = dbc.Container(
                                                   ))
             ]),
            ]
-        , width=3),
+        , width=2),
 
         dbc.Col(
             dcc.Graph(id='polar_bar'),
                ),
-    ], style = {'display' : 'none'}),
+        dbc.Col(html.Div(id='second_row', children=[
+                    dbc.Row(children=[
+                        dcc.Graph(id='distplot')]),
+                    dbc.Row(
+                        dcc.Graph(id='top_performers_barchart')
+                    )
 
-    dbc.Row(id='second_row',
-            children = [
-                dbc.Col(
-                    dcc.Graph(id='distplot')
-                )
-    ], style= {'display': 'none'}
-    ),
+                    ], style = {'display' : 'none'}
+                         ))]),
+
     html.Footer('patryk lowicki / plotly / fbref'),
     ],
-
-
-
-)
+    fluid=True)
 
 
 def normalize(df, template):
@@ -423,6 +427,7 @@ def get_image(input):
 #distplot
 @app.callback(
     [dash.dependencies.Output('distplot', 'figure'),
+     dash.dependencies.Output('top_performers_barchart', 'figure'),
      dash.dependencies.Output('second_row', 'style')],
     [dash.dependencies.Input('player_name_input', 'value'),
      dash.dependencies.Input('position_template_picker', 'value'),
@@ -446,8 +451,10 @@ def make_distplot(playername, position, clickData):
     names = np.array(xg.index)
 
     fig = ff.create_distplot([lxg], [str(attribute)], bin_size=0.01, show_rug=True, show_hist=False, rug_text=[names])
-    fig.update_layout(showlegend=False,
-                      height=600,
+    fig.update_layout( title='Compared to other players on selected position',
+                        showlegend=False,
+                      height=400,
+                      width=600,
                       # template = 'plotly_dark',
                       annotations=[
                           dict(
@@ -464,9 +471,26 @@ def make_distplot(playername, position, clickData):
                           )
                       ])
 
+    top = xg.sort_values(by=attribute, ascending=False)[:10]
+    top = top.sort_values(by=attribute, ascending=True)
+
+    fig2 = go.Figure(go.Bar(
+        x = [x for x in top[attribute].values],
+        y = [x for x in top.index],
+        orientation='h'
+    ))
+
+    fig2.update_layout(title='Top performers',
+                        showlegend=False,
+                       width=600,
+                      height=400,
+                      # template = 'plotly_dark',
+                        )
+
+
     style_property = {'display' : 'block'}
 
-    return fig, style_property
+    return fig, fig2, style_property
 
 
 
