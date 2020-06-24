@@ -638,8 +638,50 @@ page_2_layout = html.Div([
                 ], justify='around'
         ),
 
-        dbc.Row(
-            dcc.Graph(id='compare_polar_chart')
+        dbc.Row(children=[
+
+            dbc.Col(children=[
+                dbc.Card([
+                    dbc.CardImg(id='player_image_1'),
+                    dbc.CardBody(dash_table.DataTable(id='summary_table_1',
+                                                      style_as_list_view=True,
+                                                      style_header={'textAlign': 'left',
+                                                                    'fontFamily': 'Helvetica',
+                                                                    'fontWeight': 'bold',
+                                                                    'fontSize': 12,
+                                                                    },
+
+                                                      style_cell={'textAlign': 'left',
+                                                                  'fontFamily': 'Helvetica'},
+
+                                                      ))
+                ]),
+            ]
+                , width=2)
+            ,
+            dbc.Col( dcc.Graph(id='compare_polar_chart'), width=8 ),
+
+
+        dbc.Col(children=[
+                dbc.Card([
+                    dbc.CardImg(id='player_image_2'),
+                    dbc.CardBody(dash_table.DataTable(id='summary_table_2',
+                                                      style_as_list_view=True,
+                                                      style_header={'textAlign': 'left',
+                                                                    'fontFamily': 'Helvetica',
+                                                                    'fontWeight': 'bold',
+                                                                    'fontSize': 12,
+                                                                    },
+
+                                                      style_cell={'textAlign': 'left',
+                                                                  'fontFamily': 'Helvetica'},
+
+                                                      ))
+                ]),
+            ]
+                , width=2)
+        ]
+
         )
 ],fluid=True)])
 
@@ -707,6 +749,83 @@ def make_compare_chart(playername1, playername2, template, league):
 
     return fig
 
+# GET IMAGE PLAYER 1
+@app.callback(
+    dash.dependencies.Output('player_image_1', 'src'),
+    [dash.dependencies.Input('player_name_input_1', 'value')]
+)
+def get_image(input):
+    IMAGEDIR = os.getcwd() + r'\assets\\'
+    filepath = ''.join([IMAGEDIR, input, '.png'])
+    if os.path.isfile(filepath):
+        img = ''.join([input, '.png'])
+    else:
+        img = ''.join(['blank_avatar', '.png'])
+
+    output = app.get_asset_url(img)
+
+    return output
+
+
+# GET PLAYER IMAGE
+@app.callback(
+    dash.dependencies.Output('player_image_2', 'src'),
+    [dash.dependencies.Input('player_name_input_2', 'value')]
+)
+def get_image(input):
+    IMAGEDIR = os.getcwd() + r'\assets\\'
+    filepath = ''.join([IMAGEDIR, input, '.png'])
+    if os.path.isfile(filepath):
+        img = ''.join([input, '.png'])
+    else:
+        img = ''.join(['blank_avatar', '.png'])
+
+    output = app.get_asset_url(img)
+
+    return output
+
+
+# SUMMARY TABLE
+@app.callback(
+    [dash.dependencies.Output('summary_table_1', 'data'),
+     dash.dependencies.Output('summary_table_1', 'columns')],
+    [dash.dependencies.Input('player_name_input_1', 'value')]
+)
+def build_summary_table(input):
+    player_info = df.loc[df.index == input][info_columns]
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['Name', 'Nationality', 'Position', 'Club', 'League', 'Matches', 'Starts', 'Minutes',
+                           'Minutes %', 'Goals', 'Assists']
+
+    player_info = player_info.transpose()
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['', input]
+
+    data = player_info[1:].to_dict("records")
+    columns = [{"name": i, "id": i} for i in [str(x) for x in player_info.columns]]
+
+    return data, columns
+
+# SUMMARY TABLE
+@app.callback(
+    [dash.dependencies.Output('summary_table_2', 'data'),
+     dash.dependencies.Output('summary_table_2', 'columns')],
+    [dash.dependencies.Input('player_name_input_2', 'value')]
+)
+def build_summary_table(input):
+    player_info = df.loc[df.index == input][info_columns]
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['Name', 'Nationality', 'Position', 'Club', 'League', 'Matches', 'Starts', 'Minutes',
+                           'Minutes %', 'Goals', 'Assists']
+
+    player_info = player_info.transpose()
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['', input]
+
+    data = player_info[1:].to_dict("records")
+    columns = [{"name": i, "id": i} for i in [str(x) for x in player_info.columns]]
+
+    return data, columns
 
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
