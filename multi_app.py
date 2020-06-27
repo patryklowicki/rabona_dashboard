@@ -10,6 +10,8 @@ from sklearn import preprocessing
 import dash_bootstrap_components as dbc
 import os
 import plotly.figure_factory as ff
+from plotly.subplots import make_subplots
+import scipy
 
 
 df = pd.read_pickle(r'./data/merged_players.p')
@@ -235,7 +237,7 @@ index_page = html.Div([
     html.Br(),
     dcc.Link('Go to Page 2', href='/page-2'),
     html.Br(),
-    dcc.Link('Similar players [BETA]', href='/page-2'),
+    dcc.Link('Similar players [BETA]', href='/similar'),
 ])
 
 page_1_layout = html.Div([
@@ -626,6 +628,7 @@ page_2_layout = html.Div([
                                            {'label': 'Premier League', 'value': 'Premier League'},
                                            {'label': 'Bundesliga', 'value': 'Bundesliga'},
                                            {'label': 'Ligue 1', 'value': 'Ligue 1'},
+                                           {'label': 'La Liga', 'value': 'La Liga'},
                                        ],
                                        ))
         ]),
@@ -827,6 +830,161 @@ def build_summary_table(input):
 
     return data, columns
 
+
+page_similar_layout = html.Div([
+    navbar,
+
+    dbc.Row(children=[
+                dbc.Col(dbc.Input(id='similar_player_name_input', placeholder="Enter player's name", type='text', debounce=True,
+                                  bs_size='lg', className='mb-3')),
+                dbc.Col(dbc.RadioItems(id='similar_position_template_picker',
+                                       options=[
+                                           {'label': 'Goalkeeper', 'value': 'GK'},
+                                           {'label': 'Defender', 'value': 'DF'},
+                                           {'label': 'Midfielder', 'value': 'MF'},
+                                           {'label': 'Forward', 'value': 'FW'}
+                                       ],))
+                    ]
+            ),
+    dbc.Row(children=[
+        dcc.Graph(id='similar_players_chart')
+    ])
+    ])
+
+
+def find_similar_players(df, playername, position):
+    #     player = df.loc[df.index==playername]
+    same_position = df.loc[(df[('Unnamed: 3_level_0', 'Pos')] == position) & (df[('Playing Time_y', 'Min%')] > 50)]
+
+    if position == 'GK':
+        same_position = normalize(same_position, gk_attributes.values())
+        player = same_position.loc[same_position.index == playername]
+        ary = scipy.spatial.distance.cdist(same_position[gk_attributes.values()], player[gk_attributes.values()],
+                                           metric='euclidean')
+    elif position == 'DF':
+        same_position = normalize(same_position, df_attributes.values())
+        player = same_position.loc[same_position.index == playername]
+        ary = scipy.spatial.distance.cdist(same_position[df_attributes.values()], player[df_attributes.values()],
+                                           metric='euclidean')
+    elif position == 'MF':
+        same_position = normalize(same_position, am_attributes.values())
+        player = same_position.loc[same_position.index == playername]
+        ary = scipy.spatial.distance.cdist(same_position[am_attributes.values()], player[am_attributes.values()],
+                                           metric='euclidean')
+    elif position == 'FW':
+        same_position = normalize(same_position, fw_attributes.values())
+        player = same_position.loc[same_position.index == playername]
+        ary = scipy.spatial.distance.cdist(same_position[fw_attributes.values()], player[fw_attributes.values()],
+                                           metric='euclidean')
+
+    same_position['ary'] = ary
+
+    most_similar = same_position.sort_values(by='ary')
+
+    return most_similar[:8]
+
+
+@app.callback(
+    dash.dependencies.Output('similar_players_chart', 'figure'),
+    [dash.dependencies.Input('similar_player_name_input', 'value'),
+     dash.dependencies.Input('similar_position_template_picker', 'value')]
+)
+def make_similar_players_chart(playername, template):
+    similar_players = find_similar_players(df, playername, template)
+    players_attributes = {}
+    for player in similar_players.index:
+        gpa = get_player_attributes(player, template, 'top')
+        attributes = gpa[0]
+        players_attributes[player] = attributes
+
+    fig = make_subplots(rows=8, cols=1,
+                        specs=[
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}],
+                            [{"type": "polar"}]
+                        ],
+                        subplot_titles=tuple([x for x in players_attributes.keys()])
+                        )
+
+    rownum = 1
+    for player, attributes in players_attributes.items():
+        fig.add_trace(go.Barpolar(
+            r=attributes,  # wartosci atrybutow w kolejnosci przeciwnej do zegara
+            name=player,
+            marker_color='#CB95BC',
+            theta=gpa[1]
+        ),
+            row=rownum, col=1)
+
+        #     fig.update_traces(text=attributes)
+        rownum = rownum + 1
+
+    fig.update_layout(
+        # title=' '.join(['Players similar to', player]),
+        polar_angularaxis={
+            'direction': 'clockwise'
+        },
+        polar_radialaxis={
+            'range': [0, 1],
+            'tickmode': 'array',
+            'tickvals': [0.25, 0.5, 0.75],
+        },
+
+        polar_angularaxis_rotation=90,
+        height=3000,
+        showlegend=False
+    )
+
+    fig['layout']['polar2'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.778125, 0.8703124999999999]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar3'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.6484375, 0.740625]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar4'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.51875, 0.6109375]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar5'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.38906250000000003, 0.48125000000000007]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar6'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.259375, 0.3515625]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar7'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.1296875, 0.22187500000000002]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    fig['layout']['polar8'] = {
+        'angularaxis': {'direction': 'clockwise', 'rotation': 90},
+        'domain': {'x': [0.0, 1.0], 'y': [0.0, 0.0921875]},
+        'radialaxis': {'range': [0, 1], 'tickmode': 'array', 'tickvals': [0.25, 0.5, 0.75]}
+    }
+
+    # print(fig['layout'])
+    return fig
+
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
               [dash.dependencies.Input('url', 'pathname')])
@@ -835,6 +993,8 @@ def display_page(pathname):
         return page_1_layout
     elif pathname == '/page-2':
         return page_2_layout
+    elif pathname == '/similar':
+        return page_similar_layout
     else:
         return index_page
     # You could also return a 404 "URL not found" page here
