@@ -14,7 +14,7 @@ from plotly.subplots import make_subplots
 import scipy
 
 
-df = pd.read_pickle(r'./data/merged_players.p')
+df = pd.read_pickle(r'./data/2020_06_27/merged_players.p')
 # gk = pd.read_pickle(r'./data/merged_gk.p')
 
 
