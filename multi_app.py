@@ -173,27 +173,27 @@ PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 search_bar = dbc.Row(
     [
         # dbc.Col(dbc.Input(type="search", placeholder="Search")),
-        dbc.Col(dbc.Button('Player details',
+        dbc.Col(dbc.Button('Player Details',
                            id='about_button',
                            outline = True,
                            color= 'dark',
-                           href='page-2'
+                           href='details'
                            # style={'font-size' : '20px',
                            #          'font-weight': 'bold',
                            #          'color' : '#CB95BC'}
                 )),
-        dbc.Col(dbc.Button('Compare Players',
+        dbc.Col(dbc.Button('Compare players',
                            id='theme_button',
                            outline = True,
                            color= 'dark',
-                           href='page-1'
+                           href='compare'
                 )),
 
-        dbc.Col(dbc.Button('Similar players [beta]',
+        dbc.Col(dbc.Button('Similar Players',
                            id='similar',
                            outline = True,
                            color= 'dark',
-                           href='page-1'
+                           href='similar'
                 )),
 
 
@@ -248,14 +248,16 @@ page_1_layout = html.Div([
             dbc.Collapse(
                 dbc.Jumbotron(
                     [
-                        html.H2('Welcome to Rabona Dashboard', className='display-3'),
                         html.P(
-                            'Rabona is a stats visualization tool powered that allows you to see players statistics TOP 5 european football leagues '),
+                            'Rabona is a stats visualization tool that allows you to see player statistics, compare two players and find players similar to selected. TOP 5 european football leagues are covered with data by fbref.com and statsbomb.com. '
+                                ),
                         html.Hr(className='my-2'),
                         html.P(
-                            "Type player's name to see stats vizualization. You can change positional template and filter by league here. "
-                            "You can see more details on a distplot when you click on single bar/attribute"
-                            "Hide this message by clicking button below or just start typing player's name! "),
+                            "Type player's name to see stats vizualization. You can change positional template and filter by league."
+                            "Click on one of the bars to see how selected players compares to other on a distribution graph."
+                            "Click Compare to compare two players"
+                            "Click Find Similar to search for similar players based on their statisitcs"
+                            ),
                         dbc.Button(
                             "Got it",
                             id="collapse-button",
@@ -323,8 +325,8 @@ page_1_layout = html.Div([
                                 dcc.Graph(id='top_performers_barchart')
                             )
 
-                        ], style={'display': 'none'}
-                                         ))]),
+                        ],
+                                         ))], style={'display': 'none'} ),
 
             html.Footer('patryk lowicki / plotly / fbref'),
         ],
@@ -662,7 +664,7 @@ page_2_layout = html.Div([
             ]
                 , width=2)
             ,
-            dbc.Col( dcc.Graph(id='compare_polar_chart'), width=8 ),
+            dbc.Col( dcc.Graph(id='compare_polar_chart'), width={"size" : 6, "offset" : 2} ),
 
 
         dbc.Col(children=[
@@ -847,7 +849,25 @@ page_similar_layout = html.Div([
                     ]
             ),
     dbc.Row(children=[
-        dcc.Graph(id='similar_players_chart')
+        dbc.Col(dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H4("Finding similar players", className="card-title"),
+                    # html.H6("Card subtitle", className="card-subtitle"),
+                    html.P(
+                        "We consider current player statistics as his characteristic or style of play. Based on it we can look for similar players"
+                        "To visualize this you can see polar chart for players that looks similar to our algorithm"
+                        "This can be used by scouts to find replacement for a player",
+                        className="card-text",
+                    ),
+                ]
+            ),
+
+        ), style={"width": "18rem", 'offset': 5},),
+        dbc.Column(
+            dcc.Graph(id='similar_players_chart')
+        )
+
     ])
     ])
 
@@ -989,14 +1009,14 @@ def make_similar_players_chart(playername, template):
 @app.callback(dash.dependencies.Output('page-content', 'children'),
               [dash.dependencies.Input('url', 'pathname')])
 def display_page(pathname):
-    if pathname == '/page-1':
+    if pathname == '/details':
         return page_1_layout
-    elif pathname == '/page-2':
+    elif pathname == '/compare':
         return page_2_layout
     elif pathname == '/similar':
         return page_similar_layout
     else:
-        return index_page
+        return page_1_layout
     # You could also return a 404 "URL not found" page here
 
 
