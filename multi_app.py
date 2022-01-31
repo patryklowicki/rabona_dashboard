@@ -12,25 +12,27 @@ import os
 import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
 import scipy
+from fieldplayers_attributes import fieldplayers_attributes
 
 
-df = pd.read_pickle(r'./data/2020_06_27/merged_players.p')
+df = pd.read_pickle(r'C:\Users\lowicki\football_analysis\sorare\rabona_dashboard_sorare\data\2021_12_29\merged_fieldplayers.p')
 # gk = pd.read_pickle(r'./data/merged_gk.p')
 
-
+print(df.head())
 
 #### attributes
 
-info_columns = [('Unnamed: 2_level_0', 'Nation'),
+info_columns = [
+                ('Unnamed: 2_level_0', 'Nation'),
                   ('Unnamed: 3_level_0', 'Pos'),
                   ('Unnamed: 4_level_0', 'Squad'),
-                  ('Unnamed: 5_level_0', 'Comp'),
+                  ('info', 'league'),
                   ('Playing Time_x', 'MP'),
                   ('Playing Time_x', 'Starts'),
                   ('Playing Time_x', 'Min'),
                   ('Playing Time_y', 'Min%'),
-                  ('Performance', 'Gls'),
-                  ('Performance', 'Ast')
+                  ('Performance_x', 'Gls'),
+                  ('Performance_x', 'Ast')
                 ]
 
 gk_attributes = {
@@ -44,7 +46,7 @@ gk_attributes = {
 }
 
 df_attributes = {
-      "Passes to final third" : ('Unnamed: 27_level_0', '1/3'),
+      "Passes to final third" : ('Unnamed: 26_level_0', '1/3'),
       "Progressive passes distance" : ('Total',               'PrgDist'),
       "Pass completion %" : ('Total',               'Cmp%'),
       "Long pass completion %" : ('Long', 'Cmp%'),
@@ -54,17 +56,17 @@ df_attributes = {
 }
 
 am_attributes = {
-        "Goals" : ('Standard',            'Gls'),
+        "Goals" : ('Per 90 Minutes', 'Gls'),
         "Non-penalty xG" : ('Expected_y',          'npxG'),
         "Non-penalty xG per shot" : ('Expected_y',          'npxG/Sh'),
-        "Xa" : ('Unnamed: 24_level_0', 'xA'),
-        "Passes to final third" : ('Unnamed: 27_level_0', '1/3'),
-        'Passes into Box' : ('Unnamed: 28_level_0', 'PPA'),
+        "Xa" : ('Unnamed: 23_level_0', 'xA'),
+        "Passes to final third" : ('Unnamed: 26_level_0', '1/3'),
+        'Passes into Box' : ('Unnamed: 27_level_0', 'PPA'),
         "Progressive passes distance" : ('Total',               'PrgDist'),
         "Pass completion %" : ('Total',               'Cmp%'),
         "Successful dribbles" : ('Dribbles', 'Succ'),
         "Successful dribbes %" : ('Dribbles',            'Succ%'),
-        "Disposesed" : ('Unnamed: 28_level_0', 'Dispos'),
+        "Disposesed" : ('Carries', 'Dis'),
         'Successful Pressures' : ('Pressures', 'Succ'),
        }
 
@@ -75,14 +77,11 @@ fw_attributes = {
     'Conversion Rate' : ('Standard', 'G/Sh'),
     'Touches in Box'  : ('Touches', 'Att Pen'),
     'xA' : ('Per 90 Minutes', 'xA'),
-    'Passes into Box' : ('Unnamed: 28_level_0', 'PPA'),
+    'Passes into Box' : ('Unnamed: 27_level_0', 'PPA'),
     'Succesfull Dribbles' : ('Dribbles', 'Succ'),
     'Dribbles Success %' : ('Dribbles', 'Succ%'),
     'Successful Pressures' : ('Pressures', 'Succ'),
 }
-
-
-
 
 
 # Since we're adding callbacks to elements that don't exist in the app.layout,
@@ -196,6 +195,14 @@ search_bar = dbc.Row(
                            href='similar'
                 )),
 
+        dbc.Col(dbc.Button('Scout',
+                                   id='scout',
+                                   outline = True,
+                                   color= 'dark',
+                                   href='scout'
+                        )),
+
+
 
         dbc.Col(
             html.Img(src=ICON_IMAGE, height="60px", className="ml-2"),
@@ -290,6 +297,8 @@ page_1_layout = html.Div([
                                            {'label': 'Premier League', 'value': 'Premier League'},
                                            {'label': 'Bundesliga', 'value': 'Bundesliga'},
                                            {'label': 'Ligue 1', 'value': 'Ligue 1'},
+                                           {'label': 'La Liga', 'value': 'La Liga'},
+                                           {'label': 'MLS', 'value': 'MLS'},
                                        ],
                                        ))]
             ),
@@ -344,7 +353,6 @@ def normalize(df, template):
     normalized = pd.DataFrame(x_scaled, columns=template)
     result = pd.merge(df_info, normalized, left_index=True, right_index=True)
     result.set_index(('Unnamed: 1_level_0', 'Player'), inplace=True)
-
     return result
 
 
@@ -631,6 +639,7 @@ page_2_layout = html.Div([
                                            {'label': 'Bundesliga', 'value': 'Bundesliga'},
                                            {'label': 'Ligue 1', 'value': 'Ligue 1'},
                                            {'label': 'La Liga', 'value': 'La Liga'},
+                                           {'label': 'MLS', 'value': 'MLS'},
                                        ],
                                        ))
         ]),
@@ -864,7 +873,7 @@ page_similar_layout = html.Div([
             ),
 
         ), style={"width": "18rem", 'offset': 5},),
-        dbc.Column(
+        dbc.Col(
             dcc.Graph(id='similar_players_chart')
         )
 
@@ -1005,6 +1014,242 @@ def make_similar_players_chart(playername, template):
     # print(fig['layout'])
     return fig
 
+
+page_scout = html.Div([
+    navbar,
+    dbc.Row([
+    dbc.Col(children=[
+        dbc.Card(
+            [
+                html.Div(
+                    [
+                    dbc.Label("Filters"),
+                    dbc.Label("Position"),
+                    dbc.RadioItems(id='scout_position_template_picker',
+                                               options=[
+                                                   {'label': 'Goalkeeper', 'value': 'GK'},
+                                                   {'label': 'Defender', 'value': 'DF'},
+                                                   {'label': 'Midfielder', 'value': 'MF'},
+                                                   {'label': 'Forward', 'value': 'FW'}
+                                               ],)
+                    ]
+                ),
+                html.Div(
+                    [
+                        dbc.Label("X variable"),
+                        dcc.Dropdown(
+                            id="x-variable",
+                            options=[
+                                {"label": col, "value": col} for col in list(fieldplayers_attributes.keys())
+                            ],
+                            value="sepal length (cm)",
+                        ),
+                    ]
+                ),
+                html.Div(
+                    [
+                        dbc.Label("Y variable"),
+                        dcc.Dropdown(
+                            id="y-variable",
+                            options=[
+                                {"label": col, "value": col} for col in list(fieldplayers_attributes.keys())
+                            ],
+                            value="sepal width (cm)",
+                        ),
+                    ]
+                ),
+                html.Div(
+                    children=[
+                    dbc.Label('Minutes'),
+                    dcc.RangeSlider(
+                            id='minutes_range_slider',
+                            min=0, max=100, step=1,
+                            marks={0: '0',
+                                   25 : '25',
+                                   50 : '50',
+                                   75 : '75',
+                                   100: '100'},
+                            value=[50, 100]
+                        ),
+                    dbc.Label('Age'),
+                    dcc.RangeSlider(
+                            id='age_range_slider',
+                            min=15, max=40, step=1,
+                            marks={15: '15',
+                                   20: '20',
+                                   25: '25',
+                                   30: '30',
+                                   32: '35',
+                                   40: '40'},
+                            value=[18, 30]
+                        ),
+                    ]
+                )
+            ],
+            body=True,
+        )
+    ],
+    width=4),
+
+    dbc.Col(
+        dcc.Graph(id='scout_scatter_chart')
+    ),
+]),
+
+    #SELECTED PLAYER INFO ROW
+    dbc.Row(children=[
+        dbc.Col([
+            dbc.Card([
+                        dbc.CardImg(id='player_image'),
+                        dbc.CardBody(dash_table.DataTable(id='summary_table_scout',
+                                                          style_as_list_view=True,
+                                                          style_header={'textAlign': 'left',
+                                                                        'fontFamily': 'Helvetica',
+                                                                        'fontWeight': 'bold',
+                                                                        'fontSize': 12,
+                                                                        },
+
+                                                          style_cell={'textAlign': 'left',
+                                                                      'fontFamily': 'Helvetica'},
+
+                                                          )
+                                     )
+                        ]),
+        ]),
+        dbc.Col(
+                        dcc.Graph(id='polar_bar_scout'),
+                        ),
+
+        ])
+])
+
+@app.callback(
+    dash.dependencies.Output("scout_scatter_chart", "figure"),
+    [
+        dash.dependencies.Input("x-variable", "value"),
+        dash.dependencies.Input("y-variable", "value"),
+        dash.dependencies.Input('scout_position_template_picker', 'value'),
+        dash.dependencies.Input('minutes_range_slider', 'value'),
+        dash.dependencies.Input('age_range_slider', 'value'),
+    ],
+)
+def make_scout_scatter(x,y, position,minutes_range,age_range):
+    min_minutes, max_minutes = minutes_range
+    min_age, max_age = age_range
+    temp_df = df[(df[('Position', 'Pos')] == position) &
+                 (df[('Playing Time_y', 'Min%')] >= min_minutes) & (df[('Playing Time_y', 'Min%')] <= max_minutes) &
+                 (df[('Unnamed: 5_level_0', 'Age')] >= min_age) & (df[('Unnamed: 5_level_0', 'Age')] <= max_age)]
+    temp_df = temp_df[[fieldplayers_attributes.get(x), fieldplayers_attributes.get(y)]]
+    temp_df.columns = [x, y]
+
+    temp_df.reset_index(inplace=True)
+    temp_df.columns = ['name', x, y]
+
+
+    fig = go.Figure(data=go.Scatter(x=temp_df[x],
+                                    y=temp_df[y],
+                                    text=temp_df['name'],
+                                    mode='markers'),
+                    layout = {"xaxis": {"title": x}, "yaxis": {"title": y}}
+                    )
+
+    return fig
+
+
+# SUMMARY TABLE
+@app.callback(
+    [dash.dependencies.Output('summary_table_scout', 'data'),
+     dash.dependencies.Output('summary_table_scout', 'columns')],
+    [dash.dependencies.Input('scout_scatter_chart', 'clickData')]
+)
+def build_summary_table_scout(clickData):
+    clicked_player_name = clickData['points'][0]['text']
+    player_info = df.loc[df.index == clicked_player_name][info_columns]
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['Name', 'Nationality', 'Position', 'Club', 'League', 'Matches', 'Starts', 'Minutes',
+                           'Minutes %', 'Goals', 'Assists']
+
+    player_info = player_info.transpose()
+    player_info.reset_index(inplace=True)
+    player_info.columns = ['', clicked_player_name]
+
+    data = player_info[1:].to_dict("records")
+    columns = [{"name": i, "id": i} for i in [str(x) for x in player_info.columns]]
+
+    return data, columns
+
+
+def get_position_attributes(position):
+    if position == 'GK':
+        attributes = gk_attributes
+    elif position == 'DF':
+        attributes = df_attributes
+    elif position == 'MF':
+        attributes = am_attributes
+    elif position == 'FW':
+        attributes = fw_attributes
+    else:
+        'wrong position value'
+    return position
+
+
+# polar plot
+@app.callback(
+    dash.dependencies.Output('polar_bar_scout', 'figure'),
+    [dash.dependencies.Input('scout_scatter_chart', 'clickData'),
+    dash.dependencies.Input('scout_position_template_picker', 'value')
+     ]
+)
+def make_polar_chart_scout(clickData, position):
+    playername = clickData['points'][0]['text']
+    print(playername)
+    pos_attributes = get_position_attributes(position)
+    player_raw_values = df.loc[df.index == playername][list(fw_attributes.values())]
+    template_df_pre = df.loc[(df.index == playername) | (df[('Position', 'Pos')] == position)]
+    template_df = template_df_pre.loc[template_df_pre[('Playing Time_y', 'Min%')] > 50]
+    normalized_to_position = normalize(template_df, list(fw_attributes.values()))
+    player_normalized = normalized_to_position.loc[normalized_to_position.index == playername][list(fw_attributes.values())]
+    columns = [str(x) for x in list(fw_attributes.keys())]
+    customdata = [x for x in list(fw_attributes.values())]
+
+    player_attr_values = player_normalized.values[0].tolist()
+
+
+    fig = go.Figure()
+    fig.add_trace(go.Barpolar(
+        r=player_attr_values,  # wartosci atrybutow w kolejnosci przeciwnej do zegara
+        name='Shots',
+        marker_color='#CB95BC',
+        theta=columns,
+        customdata=customdata
+    ))
+
+    fig.update_traces(
+        text=player_raw_values.values[0].tolist()
+    )
+
+    fig.update_layout(
+        polar_angularaxis={
+            'direction': 'clockwise'
+        },
+        polar_radialaxis={
+            'range': [0, 1],
+            'tickmode': 'array',
+            'tickvals': [0.25, 0.5, 0.75],
+        },
+        # template = 'plotly_dark',
+        width=600,
+        height=600,
+        font_size=14,
+        legend_font_size=14,
+        polar_angularaxis_rotation=90,
+    )
+
+    style_content = {'display': 'flex'}
+
+    return fig
+
+
 # Update the index
 @app.callback(dash.dependencies.Output('page-content', 'children'),
               [dash.dependencies.Input('url', 'pathname')])
@@ -1015,6 +1260,8 @@ def display_page(pathname):
         return page_2_layout
     elif pathname == '/similar':
         return page_similar_layout
+    elif pathname == '/scout':
+        return page_scout
     else:
         return page_1_layout
     # You could also return a 404 "URL not found" page here
